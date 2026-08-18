@@ -1,0 +1,92 @@
+Part1
+------
+
+Q1. Observe the PCB address of the processes for the provided test case #1. Compare that to any of the addresses in the user space and note down the differences.
+
+Address of ubuf (stack address in user space): 0x7FFFFFB98.
+In include/context.h, we see that the stack start address is 0x800000000. Since memory grows higher address to lower address in stack, this tells us that ubuf has been allocated at the very beginning of the stack.
+                 
+PCB address (which is in kernel space) is: 0x20862C0 
+The user space address is much bigger than the PCB address. Further, the CODE_START is 0x100000000, and we see that the PCB address is much smaller than that. Therefore, the OS allocates the PCB in the start part of the memory, while user processes allocate in the later part of the memory.
+________________
+Q2. Observe the output for the provided testcase#3 and match the child-parent relationship with the code logic.
+Output was:
+pid 2 ppid 1 pcb@0x2086580 name init        
+pid 1 ppid 0 pcb@0x20862C0 name init       
+pid 3 ppid 1 pcb@0x2086840 name init      
+pid 1 ppid 0 pcb@0x20862C0 name init
+-------------------------------------
+The following happens:
+1. The parent process is created first, with pid = 1 and ppid = 0.
+2. Next, the first fork() is called, which creates a process with pid = 2 and ppid = 1. The parent process sleeps for 3 seconds. In the meantime, the first child prints its pid and ppid, which corresponds to first line in output. 
+3. The parent then prints its pid and ppid, which corrsponds to second line of output.
+4. The parent then calls fork() for the second time, making a new process with pid = 3 and ppid = 1. This also tells us that pid's are allocated in the increasing order. This child prints its pid and ppid while the parent sleeps again, and this corresponds to the third line in the output.
+5. Finally, the fourth line in the output is the parent again prints its own pid and ppid, corresponding to the last line in the output.
+
+Part 2
+------
+Q1. Observe the output for the provided testcase #4. How many FDs correspond to pipes and what are their access permissions?
+____
+Output was:
+file_type stdin mode 0x1 refcount 1 filepos 0
+file_type stdout mode 0x2 refcount 1 filepos 0
+file_type stderr mode 0x2 refcount 1 filepos 0
+file_type pipe mode 0x1 refcount 1 filepos 0
+file_type pipe mode 0x2 refcount 1 filepos 0
+
+There is a single pipe allocated, and there are two file descriptors associated with the pipe (the fourth and fifth one). 
+The fourth fd has mode 0x1, which corresponds to read mode. This is the read fd of the pipe.
+The fifth fd has mode 0x2, which corresponds to write mode. This is the write fd of the pipe.
+
+Part 3
+-----
+
+Q1. Observe the stack segment information for testcase#2 and reason about it.
+Output is:
+code:[0x100000000-0x13FFFFFFF]next_free:0x100008000perm:R_X 
+rodata:[0x140000000-0x17FFFFFFF]next_free:0x140000000perm:R__ 
+data:[0x180000000-0x1801FFFFF]next_free:0x180001000perm:RW_ 
+stack:[0x7FF000000-0x800000000]next_free:0x7FFFFF000perm:RW_ 
+AfterexpandingRWdataandstack 
+code:[0x100000000-0x13FFFFFFF]next_free:0x100008000perm:R_X 
+rodata:[0x140000000-0x17FFFFFFF]next_free:0x140000000perm:R__ 
+data:[0x180000000-0x1801FFFFF]next_free:0x180003000perm:RW_ 
+stack:[0x7FF000000-0x800000000]next_free:0x7FFFFD000perm:RW_ 
+____
+
+The stack address decreases by 2 pages, meaning that 2 pages were allocated in the stack.
+This is because of the command ptr = buf - 8192; *ptr = 'a';
+Since buf is allocated on the stack, the two pages are also allocated on the stack. The OS automatically handles the allocation of the two pages, which is signified by the decrease in stack address (stack grows from higher to lower address)
+On the other hand, to increase the size of the data segment, we need to explicitly call expand(2, MM_WR); Because of this, the data segment also advances by two pages.
+
+Part 4
+------
+
+Q1. Why is the number of VM areas less than the number of mmap calls for testcase#4? 
+
+Output:
+Before:                                                                        
+[0x180201000-0x180206000]perm:RW_                                             
+After:                               
+[0x180202000-0x180206000]perm:RW_
+
+Four calls were made (corresponding to 2 pages, 1 page, 1 page, and 1 page, for a total of 5 pages. However, since all of them had the same file permissions, the OS combines the VM area, and we see all the VMs not as indivdual areas but one big area of 5 pages.
+In the second part, one of the VMs is unallocated using munmap, leading to a reduction of the VM space by 1 VM. Because the memory which was unmapped was in the beginning of the VM space, it did not split the VM space into two. That's why we still see one space only, although of 4 pages.
+
+
+_______
+Q2. Why it is not so for testcase #3.
+
+Output:
+Before:                                          
+[0x180201000 - 0x180202000] perm: RW_             
+[0x180202000 - 0x180203000] perm: RWX              
+[0x180203000 - 0x180204000] perm: RW_               
+[0x180204000 - 0x180205000] perm: RWX                
+After:                                                
+[0x180201000 - 0x180202000] perm: RW_                                                                
+[0x180202000 - 0x180203000] perm: RWX                  
+[0x180203000 - 0x180204000] perm: RW_
+
+In this case, all the VMs allocated consecutively had different file permissions, because of which they show up separately as four different VMs.
+Later on, the last VM is unallocated using munmap, which results in the three remaining allocated VMs showing up.
