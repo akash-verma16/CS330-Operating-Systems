@@ -1,0 +1,27 @@
+Part 1
+------
+Q1. Briefly explain your implementation logic to handle wrap-around in the trace buffer.
+We mantain two offsets, one for read and one for write. We use % 4096 to enforce wrap-around. We also mantain a count of current number of bytes in the trace buffer to handle the edge case 
+when both read and write offsets are same.
+
+Q2. Can a write to trace buffer return 0 even if we pass non-zero size to the system call? Why or Why not?
+Yes, if the buffer is already full, then you cannot write any more bytes into it. Hence return value will be 0.
+
+Q3. Explain the expected behavior of testcase9.c.  
+
+We first try to allocate 30 new trace buffers, which exceeds the max number of file descriptors. hence fd[29] should be -EINVAL.
+Next, we close fd[0]. The value in fd[0] would be 3 (as fd values 0, 1, 2 are already allocated to STDIN, STDOUT, STDERR). Hence now fd value 3 will be free.
+When we create the last trace buffer, it will get the value 3 (since that is the lowest unallocated fd). Therefore fd2 should be equal to 3.
+
+Part 2
+------
+Q1. In testcase13.c, what address `caddr' represent? How it is formulated in the user space?
+
+The address caddr will represent an address in the stack. Therefore, it will have both read and write permissions, and any calls to tb_read and tb_write will execute successfully.
+
+
+Q2. How do you explain the invocation of tb_read() and tb_write() when a read/write syscall is performed?   
+
+Depending on which of the values out of inode, pipe, and tb is not NULL, the corresponding read or write functions will be called.
+In the case of trace buffer, tb will be not NULL. Hence tb_read and tb_write will be called
+in the case of read and write system calls respectively. 
